@@ -17,9 +17,6 @@ use DateTime;
 use DateTimeZone;
 use DatePeriod;
 use InvalidArgumentException;
-use Symfony\Component\Translation\Translator;
-use Symfony\Component\Translation\TranslatorInterface;
-use Symfony\Component\Translation\Loader\ArrayLoader;
 
 /**
  * A simple API extension for DateTime
@@ -155,13 +152,6 @@ class Carbon extends DateTime
      * @var \Carbon\Carbon
      */
     protected static $testNow;
-
-    /**
-     * A translator to ... er ... translate stuff.
-     *
-     * @var \Symfony\Component\Translation\TranslatorInterface
-     */
-    protected static $translator;
 
     /**
      * The errors that can occur.
@@ -1043,80 +1033,6 @@ class Carbon extends DateTime
                     return true;
                 }
             }
-        }
-
-        return false;
-    }
-
-    ///////////////////////////////////////////////////////////////////
-    /////////////////////// LOCALIZATION //////////////////////////////
-    ///////////////////////////////////////////////////////////////////
-
-    /**
-     * Intialize the translator instance if necessary.
-     *
-     * @return \Symfony\Component\Translation\TranslatorInterface
-     */
-    protected static function translator()
-    {
-        if (static::$translator === null) {
-            static::$translator = new Translator('en');
-            static::$translator->addLoader('array', new ArrayLoader());
-            static::setLocale('en');
-        }
-
-        return static::$translator;
-    }
-
-    /**
-     * Get the translator instance in use
-     *
-     * @return \Symfony\Component\Translation\TranslatorInterface
-     */
-    public static function getTranslator()
-    {
-        return static::translator();
-    }
-
-    /**
-     * Set the translator instance to use
-     *
-     * @param \Symfony\Component\Translation\TranslatorInterface $translator
-     */
-    public static function setTranslator(TranslatorInterface $translator)
-    {
-        static::$translator = $translator;
-    }
-
-    /**
-     * Get the current translator locale
-     *
-     * @return string
-     */
-    public static function getLocale()
-    {
-        return static::translator()->getLocale();
-    }
-
-    /**
-     * Set the current translator locale and indicate if the source locale file exists
-     *
-     * @param string $locale
-     *
-     * @return bool
-     */
-    public static function setLocale($locale)
-    {
-        $locale = preg_replace_callback('/([a-z]{2})[-_]([a-z]{2})/', function ($matches) {
-            return $matches[1].'_'.strtoupper($matches[2]);
-        }, strtolower($locale));
-
-        if (file_exists($filename = __DIR__.'/Lang/'.$locale.'.php')) {
-            static::translator()->setLocale($locale);
-            // Ensure the locale has been loaded.
-            static::translator()->addResource('array', require $filename, $locale);
-
-            return true;
         }
 
         return false;
@@ -2604,100 +2520,6 @@ class Carbon extends DateTime
         return $this->diffInSeconds($this->copy()->endOfDay());
     }
 
-    /**
-     * Get the difference in a human readable format in the current locale.
-     *
-     * When comparing a value in the past to default now:
-     * 1 hour ago
-     * 5 months ago
-     *
-     * When comparing a value in the future to default now:
-     * 1 hour from now
-     * 5 months from now
-     *
-     * When comparing a value in the past to another value:
-     * 1 hour before
-     * 5 months before
-     *
-     * When comparing a value in the future to another value:
-     * 1 hour after
-     * 5 months after
-     *
-     * @param Carbon|null $other
-     * @param bool        $absolute removes time difference modifiers ago, after, etc
-     * @param bool        $short    displays short format of time units
-     *
-     * @return string
-     */
-    public function diffForHumans(Carbon $other = null, $absolute = false, $short = false)
-    {
-        $isNow = $other === null;
-
-        if ($isNow) {
-            $other = static::now($this->getTimezone());
-        }
-
-        $diffInterval = $this->diff($other);
-
-        switch (true) {
-            case ($diffInterval->y > 0):
-                $unit = $short ? 'y' : 'year';
-                $count = $diffInterval->y;
-                break;
-
-            case ($diffInterval->m > 0):
-                $unit = $short ? 'm' : 'month';
-                $count = $diffInterval->m;
-                break;
-
-            case ($diffInterval->d > 0):
-                $unit = $short ? 'd' : 'day';
-                $count = $diffInterval->d;
-
-                if ($count >= static::DAYS_PER_WEEK) {
-                    $unit = $short ? 'w' : 'week';
-                    $count = (int) ($count / static::DAYS_PER_WEEK);
-                }
-                break;
-
-            case ($diffInterval->h > 0):
-                $unit = $short ? 'h' : 'hour';
-                $count = $diffInterval->h;
-                break;
-
-            case ($diffInterval->i > 0):
-                $unit = $short ? 'min' : 'minute';
-                $count = $diffInterval->i;
-                break;
-
-            default:
-                $count = $diffInterval->s;
-                $unit = $short ? 's' : 'second';
-                break;
-        }
-
-        if ($count === 0) {
-            $count = 1;
-        }
-
-        $time = static::translator()->transChoice($unit, $count, array(':count' => $count));
-
-        if ($absolute) {
-            return $time;
-        }
-
-        $isFuture = $diffInterval->invert === 1;
-
-        $transId = $isNow ? ($isFuture ? 'from_now' : 'ago') : ($isFuture ? 'after' : 'before');
-
-        // Some langs have special pluralization for past and future tense.
-        $tryKeyExists = $unit.'_'.$transId;
-        if ($tryKeyExists !== static::translator()->transChoice($tryKeyExists, $count)) {
-            $time = static::translator()->transChoice($tryKeyExists, $count, array(':count' => $count));
-        }
-
-        return static::translator()->trans($transId, array(':time' => $time));
-    }
 
     ///////////////////////////////////////////////////////////////////
     //////////////////////////// MODIFIERS ////////////////////////////
